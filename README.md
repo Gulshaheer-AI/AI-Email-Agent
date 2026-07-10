@@ -199,6 +199,11 @@ This script extracts text from the PDF, chunks it, creates Gemini embeddings, an
 
 The Gemini agent can use the following operational tools:
 
-- `route_to_refunds` - Escalates a ticket to the refunds department
-- `mark_as_spam
+- route_to_refunds - Escalates a ticket to the refunds department.
+
+- mark_as_spam - Flags the ticket as spam and closes it.
+
+- search_company_policy - Searches the internal knowledge base for policy rules.
+
+- deny_request - Automatically closes the ticket and denies the request based on strict policy violations.
 ```
