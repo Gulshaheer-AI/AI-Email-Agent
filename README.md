@@ -45,11 +45,15 @@ email_agent_system/
 │   ├── rag_doc.py            # PDF parsing and text chunking
 │   └── rag_upload.py         # Embedding and Pinecone upload script
 └── requirements.txt
+```
+
+
 ## Purpose
 
 This project demonstrates how an autonomous AI agent can be integrated into a real backend workflow. Instead of only generating text responses, the agent can inspect incoming customer requests, search company policy, update database records, and create an auditable trail of its decisions.
 
 ## Setup
+
 
 ### 1. Clone the Repository
 
