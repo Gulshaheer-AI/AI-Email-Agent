@@ -1,0 +1,16 @@
+# Security (CRITICAL)
+.env
+
+# Python Cache (Stops cluttering your repo with compiled files)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environments (Good practice to keep, even if you don't have one right now)
+venv/
+env/
+
+# OS generated files (Stops random Mac/Windows hidden files from uploading)
+.DS_Store
+Thumbs.db
