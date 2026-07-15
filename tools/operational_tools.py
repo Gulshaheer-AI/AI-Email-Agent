@@ -5,6 +5,7 @@ from models.schemas import Ticket, AgentExecutionLog,RagReference
 import os
 from pinecone import Pinecone
 from google import genai
+from langgraph.types import interrupt
 
 def route_to_refunds(ticket_id: str, reasoning: str) -> str:
     """
@@ -137,39 +138,53 @@ def search_company_policy(ticket_id: str, search_query: str) -> str:
     
 
 
-    
+ 
+
 def deny_request(ticket_id: str, reason: str) -> str:
     """
     Denies a customer's request and automatically closes the ticket in the database.
     Use this tool when a user's request explicitly violates company policy discovered during a search.
     """
-    print(f"\n[Tool Executing] Denying ticket {ticket_id}...")
+    print(f"\n[Tool Executing] Attempting to deny ticket {ticket_id}...")
     print(f"[Reason]: {reason}")
     
-    # Open a clean database session for the worker
-    db = SessionLocal()
-    try:
-        # Locate the open ticket in PostgreSQL
-       ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    # 1. THE TRIPWIRE
+    # This immediately pauses execution and surfaces the data to the graph state.
+    human_decision = interrupt({
+        "action": "deny_request",
+        "ticket_id": ticket_id,
+        "ai_reasoning": reason
+    })
     
-       if ticket:
-            ticket.assigned_category = "rejected"
-            ticket.current_status = "processed"
-            
-            # Create an audit log trace
-            log = AgentExecutionLog(
-                ticket_id=ticket_id,
-                model_used="gemini-2.5-flash",
-                tool_invoked="deny_request",
-                llm_reasoning=reason,
-                execution_status="success"
-            )
-            db.add(log)
-            db.commit()
-            print(f"[Database Success] Ticket {ticket_id} status updated to 'Closed_Denied'.")
-    except Exception as e:
-        db.rollback()    
-        return f"Error accessing ticket database: {str(e)}"         
-      
-    return f"Ticket has been officially denied and closed in the system. Reason logged: {reason}"
-   
+    # 2. THE RESUME LOGIC
+    # When the graph is unpaused, the human's command is injected into human_decision.
+    if human_decision == "approve":
+        print("[Human Approved] Proceeding with database update...")
+        db = SessionLocal()
+        try:
+           ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+        
+           if ticket:
+                ticket.assigned_category = "rejected"
+                ticket.current_status = "processed"
+                
+                log = AgentExecutionLog(
+                    ticket_id=ticket_id,
+                    model_used="gemini-2.5-flash",
+                    tool_invoked="deny_request",
+                    llm_reasoning=reason,
+                    execution_status="success"
+                )
+                db.add(log)
+                db.commit()
+                print(f"[Database Success] Ticket {ticket_id} status updated to 'Closed_Denied'.")
+                return f"Ticket has been officially denied and closed. Reason: {reason}"
+        except Exception as e:
+            db.rollback()    
+            return f"Error accessing ticket database: {str(e)}" 
+        finally:
+            db.close()
+    else:
+        # If the human types anything else (like "reject"), the tool safely aborts.
+        print("[Human Blocked] Manager rejected this action.")
+        return "Action blocked by human manager. Please find another solution or reply manually."
